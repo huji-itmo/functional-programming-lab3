@@ -29,7 +29,6 @@ module newtonInterpolator =
                 let newCount = count + 1
 
                 if newCount < pointsCount then
-                    // Still collecting initial points
                     (Buffering(newBuffer, newCount), Seq.empty)
                 else
                     // We have enough points to build polynomial
@@ -38,7 +37,6 @@ module newtonInterpolator =
                         |> List.rev // Maintain input order
                         |> List.toArray
 
-                    // Validate strictly increasing x values
                     for i in 1 .. pointsArray.Length - 1 do
                         if fst pointsArray.[i - 1] >= fst pointsArray.[i] then
                             failwith "x values must be strictly increasing"
@@ -47,7 +45,6 @@ module newtonInterpolator =
                     let ys = pointsArray |> Array.map snd
                     let n = xs.Length
 
-                    // Build divided difference table
                     let table = Array2D.zeroCreate<float> n n
 
                     for j in 0 .. n - 1 do
@@ -63,7 +60,6 @@ module newtonInterpolator =
 
                             table.[level, i] <- numerator / denominator
 
-                    // Extract coefficients (first column of table)
                     let coef = Array.init n (fun i -> table.[i, 0])
 
                     let evalNewton x0 =
@@ -77,7 +73,6 @@ module newtonInterpolator =
                     let minX = xs.[0]
                     let maxX = xs.[n - 1]
 
-                    // Generate initial points from min to max x using unfold
                     let initialPoints =
                         let generator currentX =
                             if currentX <= maxX + tolerance then
