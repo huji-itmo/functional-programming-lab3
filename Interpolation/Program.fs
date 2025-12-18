@@ -1,6 +1,6 @@
 ﻿open Interpolation.CLIArguments
 open System
-open Interpolation.Core.linearInterpolator
+open Interpolation.Core
 
 
 let readPointsFromStdin () =
@@ -43,12 +43,15 @@ let main argv =
         if config.UseLinear then
             yield!
                 points
-                |> interpolate config.StepSize
+                |> linearInterpolator.interpolate config.StepSize
                 |> Seq.map (fun (x, y) -> ("linear", x, y))
 
-    // if config.NewtonPoints > 0 then
-    //     yield! points |> newtonInterpolation config.NewtonPoints config.StepSize
+        if config.NewtonPoints > 0 then
+            yield!
+                points
+                |> newtonInterpolator.interpolate config.NewtonPoints config.StepSize
+                |> Seq.map (fun (x, y) -> ("newton", x, y))
     }
-    |> Seq.iter (fun (algo, x, y) -> printfn "%s: %.1f %.1f" algo x y)
+    |> Seq.iter (fun (algo, x, y) -> printfn "%s: %.2f %.2f" algo x y)
 
     0

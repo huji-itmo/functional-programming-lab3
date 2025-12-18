@@ -1,74 +1,152 @@
 ﻿namespace Interpolation.Core
 
 module newtonInterpolator =
-    type private NewtonState =
-        { PrevXList: float list
-          PolynomialCoefs: float list }
 
-    type private State =
-        { LastXOnGrid: float
-          newton: NewtonState }
+    // Define proper record type for Ready state
+    type ReadyState =
+        { Eval: float -> float
+          LastGeneratedX: float
+          InitialMinX: float
+          InitialMaxX: float }
 
+    // State machine for streaming Newton interpolation
+    type State =
+        | Buffering of buffer: (float * float) list * count: int
+        | Ready of ReadyState
 
-    let addPoint (state: NewtonState) (x_new: float, y_new: float) : NewtonState =
-        let xs = List.rev state.PrevXList // [x0; x1; ...; x_{n-1}]
-        let coeffs = List.rev state.PolynomialCoefs // [c0; c1; ...; c_{n-1}]
-        let xn = x_new
+    let interpolate (pointsCount: int) (step: float) (points: seq<float * float>) : seq<float * float> =
+        if pointsCount <= 0 then
+            invalidArg "pointsCount" "Number of points must be positive"
 
-        // Compute new coefficient f[x0, ..., xn]
-        let newCoeff =
-            List.foldBack (fun (x_i, c_i) acc -> (acc - c_i) / (xn - x_i)) (List.zip xs coeffs) y_new
-
-        { PrevXList = x_new :: state.PrevXList
-          PolynomialCoefs = newCoeff :: state.PolynomialCoefs }
-
-    let interpolate (step: float) =
         if step <= 0.0 then
             invalidArg "step" "Step size must be positive"
 
-        let folder (state: State option, outputs) newPoint =
+        let tolerance = 1e-10
+
+
+        // Process each point in the stream
+        let folder state point =
             match state with
-            | None ->
-                let (startX, startY) = newPoint
+            | Buffering(buffer, count) ->
+                let newBuffer = point :: buffer
+                let newCount = count + 1
 
-                (Some
-                    { LastXOnGrid = startX
-                      newton =
-                        { PrevXList = [ startX ]
-                          PolynomialCoefs = [ startY ] } },
+                if newCount < pointsCount then
+                    // Still collecting initial points
+                    (Buffering(newBuffer, newCount), Seq.empty)
+                else
+                    // We have enough points to build polynomial
+                    let pointsArray =
+                        newBuffer
+                        |> List.rev // Maintain input order
+                        |> List.sortBy fst
+                        |> List.toArray
 
-                 Seq.empty)
-            | Some st ->
-                let (newX, newY) = newPoint
+                    // Validate strictly increasing x values
+                    for i in 1 .. pointsArray.Length - 1 do
+                        if fst pointsArray.[i - 1] >= fst pointsArray.[i] then
+                            failwith "x values must be strictly increasing"
 
-                let prevX = List.head st.newton.PrevXList
+                    let xs = pointsArray |> Array.map fst
+                    let ys = pointsArray |> Array.map snd
+                    let n = xs.Length
 
-                let stepsBetweenNewPoint = floor ((newX - prevX) / step)
-                let newLastXOnGrid = st.LastXOnGrid + stepsBetweenNewPoint * step
+                    // Build divided difference table
+                    let table = Array2D.zeroCreate<float> n n
 
-                let newNewtonState = addPoint st.newton newPoint
+                    for j in 0 .. n - 1 do
+                        table.[0, j] <- ys.[j]
 
-                let interpolated =
-                    let dx = newX - prevX
+                    for level in 1 .. n - 1 do
+                        for i in 0 .. n - level - 1 do
+                            let numerator = table.[level - 1, i + 1] - table.[level - 1, i]
+                            let denominator = xs.[i + level] - xs.[i]
 
-                    if dx <= 0 then
-                        invalidArg "points" "x points should be increasing sequence"
+                            if abs denominator < tolerance then
+                                failwith "Duplicate x values detected"
 
+                            table.[level, i] <- numerator / denominator
 
-                    let linearGenerator =
-                        (fun currentX ->
-                            if (currentX < newX) then
-                                // let currentY = prevY + (currentX - prevX) * ratio
-                                // let nextX = currentX + step
-                                Some((currentX, currentY), nextX)
-                            else
-                                None)
+                    // Extract coefficients (first column of table)
+                    let coef = Array.init n (fun i -> table.[i, 0])
 
-                    Seq.unfold linearGenerator (st.LastXOnGrid + step)
+                    // Create polynomial evaluator
+                    let evalNewton x0 =
+                        let mutable result = coef.[0]
+                        let mutable product = 1.0
 
-                (Some
-                    { LastXOnGrid = newLastXOnGrid
-                      newton = newNewtonState },
-                 interpolated)
+                        for i in 1 .. n - 1 do
+                            product <- product * (x0 - xs.[i - 1])
+                            result <- result + coef.[i] * product
 
-        Seq.scan folder (None, Seq.empty) >> Seq.collect snd
+                        result
+
+                    let minX = xs.[0]
+                    let maxX = xs.[n - 1]
+
+                    // Generate initial points from min to max x
+                    let initialPoints =
+                        seq {
+                            let mutable currentX = minX
+
+                            while currentX <= maxX + tolerance do
+                                yield (currentX, evalNewton currentX)
+                                currentX <- currentX + step
+                        }
+
+                    let lastGeneratedX =
+                        if maxX >= minX then
+                            let lastX = floor ((maxX - minX) / step) * step + minX
+                            min lastX maxX
+                        else
+                            minX
+
+                    let readyState =
+                        { Eval = evalNewton
+                          LastGeneratedX = lastGeneratedX
+                          InitialMinX = minX
+                          InitialMaxX = maxX }
+
+                    (Ready readyState, initialPoints)
+
+            | Ready state ->
+                let (x_new, _) = point
+
+                // Skip points before our last generated position
+                if x_new <= state.LastGeneratedX + tolerance then
+                    (Ready state, Seq.empty)
+                else
+                    // Generate points from last position to new point
+                    let newPoints =
+                        seq {
+                            let mutable currentX = state.LastGeneratedX + step
+
+                            while currentX <= x_new + tolerance do
+                                let y = state.Eval currentX
+                                yield (currentX, y)
+                                currentX <- currentX + step
+                        }
+
+                    // Update last generated position
+                    let lastX =
+                        if x_new > state.LastGeneratedX then
+                            let lastGenerated =
+                                floor ((x_new - state.InitialMinX) / step) * step + state.InitialMinX
+
+                            min lastGenerated x_new
+                        else
+                            state.LastGeneratedX
+
+                    let newState = { state with LastGeneratedX = lastX }
+                    (Ready newState, newPoints)
+
+        // Start with buffering state
+        let initialState = Buffering([], 0)
+
+        points
+        |> Seq.scan
+            (fun (state, _) point ->
+                let (newState, outputs) = folder state point
+                (newState, outputs))
+            (initialState, Seq.empty)
+        |> Seq.collect snd
