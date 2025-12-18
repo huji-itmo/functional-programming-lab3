@@ -2,7 +2,7 @@
 
 module linearInterpolator =
     type private State =
-        { LastPointOnGrid: float
+        { LastXOnGrid: float
           PrevPoint: float * float }
 
     let interpolate (step: float) =
@@ -15,12 +15,12 @@ module linearInterpolator =
                 let (startX, _) = newPoint
 
                 (Some
-                    { LastPointOnGrid = startX
+                    { LastXOnGrid = startX
                       PrevPoint = newPoint },
                  Seq.empty)
             | Some st ->
                 let (prevX, prevY) = st.PrevPoint
-                let (lastXOnGird) = st.LastPointOnGrid
+                let (lastXOnGird) = st.LastXOnGrid
                 let (newX, newY) = newPoint
 
                 let stepsBetweenNewPoint = floor ((newX - prevX) / step)
@@ -44,13 +44,12 @@ module linearInterpolator =
                                         Some((currentX, currentY), nextX)
                                     else
                                         None)
-                                (lastXOnGird + step) // start after prevX
+                                (lastXOnGird + step)
 
                         steps
 
-                // Update state to use newPoint as the previous point
                 (Some
-                    { LastPointOnGrid = newLastXOnGrid
+                    { LastXOnGrid = newLastXOnGrid
                       PrevPoint = newPoint },
                  interpolated)
 
