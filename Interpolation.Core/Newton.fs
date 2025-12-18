@@ -1,16 +1,15 @@
 ﻿namespace Interpolation.Core
 
 module newtonInterpolator =
-
     // Define proper record type for Ready state
-    type ReadyState =
+    type private ReadyState =
         { Eval: float -> float
           LastGeneratedX: float
           InitialMinX: float
           InitialMaxX: float }
 
     // State machine for streaming Newton interpolation
-    type State =
+    type private State =
         | Buffering of buffer: (float * float) list * count: int
         | Ready of ReadyState
 
@@ -23,9 +22,7 @@ module newtonInterpolator =
 
         let tolerance = 1e-10
 
-
-        // Process each point in the stream
-        let folder state point =
+        let folder (state, outputs) point =
             match state with
             | Buffering(buffer, count) ->
                 let newBuffer = point :: buffer
@@ -84,20 +81,21 @@ module newtonInterpolator =
                     let minX = xs.[0]
                     let maxX = xs.[n - 1]
 
-                    // Generate initial points from min to max x
+                    // Generate initial points from min to max x using unfold
                     let initialPoints =
-                        seq {
-                            let mutable currentX = minX
+                        let generator currentX =
+                            if currentX <= maxX + tolerance then
+                                let y = evalNewton currentX
+                                Some((currentX, y), currentX + step)
+                            else
+                                None
 
-                            while currentX <= maxX + tolerance do
-                                yield (currentX, evalNewton currentX)
-                                currentX <- currentX + step
-                        }
+                        Seq.unfold generator minX
 
                     let lastGeneratedX =
                         if maxX >= minX then
-                            let lastX = floor ((maxX - minX) / step) * step + minX
-                            min lastX maxX
+                            let steps = floor ((maxX - minX) / step)
+                            minX + steps * step
                         else
                             minX
 
@@ -116,24 +114,22 @@ module newtonInterpolator =
                 if x_new <= state.LastGeneratedX + tolerance then
                     (Ready state, Seq.empty)
                 else
-                    // Generate points from last position to new point
+                    // Generate points from last position to new point using unfold
                     let newPoints =
-                        seq {
-                            let mutable currentX = state.LastGeneratedX + step
-
-                            while currentX <= x_new + tolerance do
+                        let generator currentX =
+                            if currentX <= x_new + tolerance then
                                 let y = state.Eval currentX
-                                yield (currentX, y)
-                                currentX <- currentX + step
-                        }
+                                Some((currentX, y), currentX + step)
+                            else
+                                None
+
+                        Seq.unfold generator (state.LastGeneratedX + step)
 
                     // Update last generated position
                     let lastX =
                         if x_new > state.LastGeneratedX then
-                            let lastGenerated =
-                                floor ((x_new - state.InitialMinX) / step) * step + state.InitialMinX
-
-                            min lastGenerated x_new
+                            let steps = floor ((x_new - state.InitialMinX) / step)
+                            state.InitialMinX + steps * step
                         else
                             state.LastGeneratedX
 
@@ -143,10 +139,4 @@ module newtonInterpolator =
         // Start with buffering state
         let initialState = Buffering([], 0)
 
-        points
-        |> Seq.scan
-            (fun (state, _) point ->
-                let (newState, outputs) = folder state point
-                (newState, outputs))
-            (initialState, Seq.empty)
-        |> Seq.collect snd
+        points |> Seq.scan folder (initialState, Seq.empty) |> Seq.collect snd
