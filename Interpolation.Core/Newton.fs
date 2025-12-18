@@ -67,16 +67,13 @@ module newtonInterpolator =
                     // Extract coefficients (first column of table)
                     let coef = Array.init n (fun i -> table.[i, 0])
 
-                    // Create polynomial evaluator
                     let evalNewton x0 =
-                        let mutable result = coef.[0]
-                        let mutable product = 1.0
-
-                        for i in 1 .. n - 1 do
-                            product <- product * (x0 - xs.[i - 1])
-                            result <- result + coef.[i] * product
-
-                        result
+                        match n with
+                        | 0 -> 0.0
+                        | 1 -> coef.[0]
+                        | _ ->
+                            let indices = seq { for i in n - 2 .. -1 .. 0 -> i }
+                            Seq.fold (fun acc i -> coef.[i] + (x0 - xs.[i]) * acc) coef.[n - 1] indices
 
                     let minX = xs.[0]
                     let maxX = xs.[n - 1]
