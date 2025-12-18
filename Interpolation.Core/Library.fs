@@ -2,7 +2,7 @@
 
 module linearInterpolator =
     type private State =
-        { FirstPoint: float * float
+        { LastPointOnGrid: float
           PrevPoint: float * float }
 
     let interpolate (step: float) =
@@ -12,18 +12,19 @@ module linearInterpolator =
         let folder (state, outputs) newPoint =
             match state with
             | None ->
+                let (startX, _) = newPoint
+
                 (Some
-                    { FirstPoint = newPoint
+                    { LastPointOnGrid = startX
                       PrevPoint = newPoint },
                  Seq.empty)
             | Some st ->
                 let (prevX, prevY) = st.PrevPoint
-                let (firstX, firstY) = st.FirstPoint
+                let (lastXOnGird) = st.LastPointOnGrid
                 let (newX, newY) = newPoint
 
-                let stepsFromFirstPoint = floor ((prevX - firstX) / step)
-
-                let nextXOnGrid = firstX + (stepsFromFirstPoint + 1.0) * step
+                let stepsBetweenNewPoint = floor ((newX - prevX) / step)
+                let newLastXOnGrid = lastXOnGird + stepsBetweenNewPoint * step
 
                 let interpolated =
                     let dx = newX - prevX
@@ -34,8 +35,6 @@ module linearInterpolator =
                         let dy = (newY - prevY)
                         let ratio = dy / dx
 
-                        // How many steps fit between prevX and newX?
-                        // We generate points starting from prevX + step up to newX (excluding endpoints if already covered)
                         let steps =
                             Seq.unfold
                                 (fun currentX ->
@@ -45,13 +44,13 @@ module linearInterpolator =
                                         Some((currentX, currentY), nextX)
                                     else
                                         None)
-                                (nextXOnGrid) // start after prevX
+                                (lastXOnGird + step) // start after prevX
 
                         steps
 
                 // Update state to use newPoint as the previous point
                 (Some
-                    { FirstPoint = st.FirstPoint
+                    { LastPointOnGrid = newLastXOnGrid
                       PrevPoint = newPoint },
                  interpolated)
 
