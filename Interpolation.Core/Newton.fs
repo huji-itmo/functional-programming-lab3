@@ -36,7 +36,6 @@ module newtonInterpolator =
                     let pointsArray =
                         newBuffer
                         |> List.rev // Maintain input order
-                        |> List.sortBy fst
                         |> List.toArray
 
                     // Validate strictly increasing x values
