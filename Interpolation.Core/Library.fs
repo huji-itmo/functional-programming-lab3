@@ -30,21 +30,21 @@ module linearInterpolator =
                     let dx = newX - prevX
 
                     if dx <= 0 then
-                        Seq.empty
-                    else
-                        let dy = (newY - prevY)
-                        let ratio = dy / dx
+                        invalidArg "points" "x points should be increasing sequence"
 
-                        let linearGenerator =
-                            (fun currentX ->
-                                if (currentX < newX) then
-                                    let currentY = prevY + (currentX - prevX) * ratio
-                                    let nextX = currentX + step
-                                    Some((currentX, currentY), nextX)
-                                else
-                                    None)
+                    let dy = (newY - prevY)
+                    let ratio = dy / dx
 
-                        Seq.unfold linearGenerator (lastXOnGird + step)
+                    let linearGenerator =
+                        (fun currentX ->
+                            if (currentX < newX) then
+                                let currentY = prevY + (currentX - prevX) * ratio
+                                let nextX = currentX + step
+                                Some((currentX, currentY), nextX)
+                            else
+                                None)
+
+                    Seq.unfold linearGenerator (lastXOnGird + step)
 
                 (Some
                     { LastXOnGrid = newLastXOnGrid
