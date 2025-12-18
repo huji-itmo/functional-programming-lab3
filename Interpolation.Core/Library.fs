@@ -35,23 +35,20 @@ module linearInterpolator =
                         let dy = (newY - prevY)
                         let ratio = dy / dx
 
-                        let steps =
-                            Seq.unfold
-                                (fun currentX ->
-                                    if (currentX < newX) then
-                                        let currentY = prevY + (currentX - prevX) * ratio
-                                        let nextX = currentX + step
-                                        Some((currentX, currentY), nextX)
-                                    else
-                                        None)
-                                (lastXOnGird + step)
+                        let linearGenerator =
+                            (fun currentX ->
+                                if (currentX < newX) then
+                                    let currentY = prevY + (currentX - prevX) * ratio
+                                    let nextX = currentX + step
+                                    Some((currentX, currentY), nextX)
+                                else
+                                    None)
 
-                        steps
+                        Seq.unfold linearGenerator (lastXOnGird + step)
 
                 (Some
                     { LastXOnGrid = newLastXOnGrid
                       PrevPoint = newPoint },
                  interpolated)
 
-        // Scan through input points, carrying state and emitting interpolated seqs
         Seq.scan folder (None, Seq.empty) >> Seq.collect snd
