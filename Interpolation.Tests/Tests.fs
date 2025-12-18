@@ -32,7 +32,6 @@ let ``Non-integer step calculation`` () =
     let expected = [ (0.3, 0.3); (0.6, 0.6); (0.9, 0.9) ]
     let result = input |> linearInterpolator.interpolate 0.3
 
-    // Compare with tolerance for floating point
     let tolerance = 1e-6
 
     Seq.zip result expected
@@ -155,7 +154,6 @@ module NewtonInterpolationTests =
 
     [<Fact>]
     let ``Quadratic interpolation with fractional step`` () =
-        // Points for x^2: (0,0), (1,1), (2,4)
         let input = seq [ (0.0, 0.0); (1.0, 1.0); (2.0, 4.0) ]
         let expected = [ (0.0, 0.0); (0.5, 0.25); (1.0, 1.0); (1.5, 2.25); (2.0, 4.0) ]
         let result = input |> newtonInterpolator.interpolate 3 0.5
