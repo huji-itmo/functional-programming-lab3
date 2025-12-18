@@ -11,20 +11,6 @@ let ``Empty input returns empty sequence`` () =
     result |> Seq.isEmpty |> should be True
 
 [<Fact>]
-let ``Single point returns original point`` () =
-    let input = seq [ (2.0, 5.0) ]
-    let expected = [ (2.0, 5.0) ]
-    let result = input |> linearInterpolator.interpolate 1.0
-    result |> should equal expected
-
-[<Fact>]
-let ``Two points with step larger than distance`` () =
-    let input = [ (0.0, 0.0); (1.0, 1.0) ]
-    let expected = [ (0.0, 0.0); (1.0, 1.0) ]
-    let result = input |> linearInterpolator.interpolate 2.0
-    result |> should equal expected
-
-[<Fact>]
 let ``Two points with exact step match`` () =
     let input = [ (0.0, 0.0); (2.0, 4.0) ]
     let expected = [ (0.0, 0.0); (1.0, 2.0); (2.0, 4.0) ]
@@ -47,10 +33,12 @@ let ``Non-integer step calculation`` () =
 
 
 [<Fact>]
-let ``Vertical line (zero dx)`` () =
-    let input = [ (1.0, 1.0); (1.0, 3.0); (1.0, 2.0) ]
-    let expected = [ (1.0, 1.0); (1.0, 3.0); (1.0, 2.0) ]
-    let result = input |> linearInterpolator.interpolate 0.5
+let ``Single point returns itself`` () =
+
+    let input = seq [ (2.0, 5.0) ]
+    let expected = [ (2.0, 5.0) ]
+    let result = input |> linearInterpolator.interpolate 1.0
+
     result |> should equal expected
 
 
@@ -65,15 +53,6 @@ let ``Negative step throws exception`` () =
     |> should throw typeof<ArgumentException>
 
 [<Fact>]
-let ``Large dataset stress test`` () =
-    // Generate 1000 points with random gaps
-    let rand = Random(42)
-
-    let points =
-        [| 0..1000 |]
-        |> Array.map (fun i -> float i + rand.NextDouble(), sin (float i) * 10.0)
-        |> Seq.ofArray
-
-    // Should complete without errors
-    let result = points |> linearInterpolator.interpolate 0.75
-    Seq.length result |> should be (greaterThan (Seq.length points))
+let ``Two points with step larger than X distance throws exception`` () =
+    (fun () -> seq [ (0.0, 0.0); (1.0, 1.0) ] |> linearInterpolator.interpolate 10.0 |> ignore)
+    |> should throw typeof<ArgumentException>

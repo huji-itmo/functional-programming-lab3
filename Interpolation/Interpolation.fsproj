@@ -5,7 +5,7 @@
     <TargetFramework>net9.0</TargetFramework>
   </PropertyGroup>
 
-  <ItemGroup><Compile Include="CLIArguments.fs" /><Compile Include="ReadPointsFromStdin.fs" />
+  <ItemGroup><Compile Include="CLIArguments.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
