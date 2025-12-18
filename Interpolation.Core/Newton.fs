@@ -1,14 +1,12 @@
 ﻿namespace Interpolation.Core
 
 module newtonInterpolator =
-    // Define proper record type for Ready state
     type private ReadyState =
         { Eval: float -> float
           LastGeneratedX: float
           InitialMinX: float
           InitialMaxX: float }
 
-    // State machine for streaming Newton interpolation
     type private State =
         | Buffering of buffer: (float * float) list * count: int
         | Ready of ReadyState
@@ -31,7 +29,6 @@ module newtonInterpolator =
                 if newCount < pointsCount then
                     (Buffering(newBuffer, newCount), Seq.empty)
                 else
-                    // We have enough points to build polynomial
                     let pointsArray =
                         newBuffer
                         |> List.rev // Maintain input order
@@ -101,11 +98,9 @@ module newtonInterpolator =
             | Ready state ->
                 let (x_new, _) = point
 
-                // Skip points before our last generated position
                 if x_new <= state.LastGeneratedX + tolerance then
                     (Ready state, Seq.empty)
                 else
-                    // Generate points from last position to new point using unfold
                     let newPoints =
                         let generator currentX =
                             if currentX <= x_new + tolerance then
@@ -116,7 +111,6 @@ module newtonInterpolator =
 
                         Seq.unfold generator (state.LastGeneratedX + step)
 
-                    // Update last generated position
                     let lastX =
                         if x_new > state.LastGeneratedX then
                             let steps = floor ((x_new - state.InitialMinX) / step)
@@ -127,7 +121,6 @@ module newtonInterpolator =
                     let newState = { state with LastGeneratedX = lastX }
                     (Ready newState, newPoints)
 
-        // Start with buffering state
         let initialState = Buffering([], 0)
 
         points |> Seq.scan folder (initialState, Seq.empty) |> Seq.collect snd
